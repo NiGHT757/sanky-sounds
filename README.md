@@ -1,6 +1,13 @@
 # [VIP] sanky-sounds + entry-sounds
 Modified version of https://forums.alliedmods.net/showthread.php?p=2689260
 
+# Features:
+Add entry sounds on SteamID + chance to play
+Sounds volume
+Reset sanky sounds usage after x seconds or on round start.
+Sanky sounds list in menu - /sank
+Chat prefix + custom texts in **translations/sankysounds.phrases.txt**
+
 # Requirements:
 [VIP Core](https://github.com/R1KO/VIP-Core) and [SourceMod](https://www.sourcemod.net/downloads.php?branch=stable) 1.10 or higher
 
