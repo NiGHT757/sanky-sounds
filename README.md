@@ -3,6 +3,7 @@ Modified version of https://forums.alliedmods.net/showthread.php?p=2689260
 
 # Features:
 Add entry sounds on SteamID + chance to play
+
 Sounds volume
 Reset sanky sounds usage after x seconds or on round start.
 Sanky sounds list in menu - /sank
