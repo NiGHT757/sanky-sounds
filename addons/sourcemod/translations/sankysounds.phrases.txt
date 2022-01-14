@@ -2,13 +2,13 @@
 {
 	"Volume Error"
 	{
-		"en"			"[{darkred}Sanky{default}] Invalid volume, min {green}0.0{default}, max{darkred} 1.0{default}."
+		"en"			"[{darkred}USP{default}] Invalid volume, min {green}0.0{default}, max{darkred} 1.0{default}."
 	}
 	
 	"Option Saved"
 	{
 		"#format"		"{1:.2f}"
-		"en"			"[{darkred}Sanky{default}] Option {green}saved! {default}New volume: {lightblue}{1}{default}."
+		"en"			"[{darkred}USP{default}] Option {green}saved! {default}New volume: {lightblue}{1}{default}."
 	}
 	
 	"Already Played"
@@ -17,10 +17,15 @@
 		"en"			"* You {darkred}already {default}played a sound {green}a while ago. {default}Please wait {purple}{1}{default} seconds before playing another sound."
 	}
 	
+	"Round Already Played"
+	{
+		"en"			"* You {darkred}already {default}played a sound in this round. {default}Please wait until next round before playing another sound."
+	}
+	
 	"Global Already Played"
 	{
 		"#format"		"{1:d}"
-		"en"			"* A {yellow}sound {darkred}was already{default} played a while {green}ago, {default} please wait {purple}%d{default} seconds."
+		"en"			"* A {yellow}sound {darkred}was already{default} played a while {green}ago, {default} please wait {purple}{1}{default} seconds."
 	}
 	
 	"Sanky Sounds MainMenuTitle"
