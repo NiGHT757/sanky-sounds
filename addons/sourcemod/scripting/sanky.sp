@@ -21,16 +21,16 @@ public Plugin myinfo =
 
 // ************************** Variables ***************************
 ConVar  g_CvAntiSpam_Time,
-        g_CvSankSounds_PlayedSound;
+        g_cvAntiSpam_GlobalTime;
 
 StringMap g_hSoundList;
 StringMap g_hEntryList;
 StringMap g_hEntryChances;
 
 int g_iAntiSpam_Time,
-	g_iSankSounds_PlayedSound,
-	g_iSoundsDeelayGlobal = 0,
-    g_iSoundsDeelay[MAXPLAYERS + 1] = 0;
+	g_iAntiSpam_GlobalTime,
+	g_iSoundsDeelayGlobal,
+    g_iSoundsDeelay[MAXPLAYERS + 1];
 
 Menu g_hMenu;
 
@@ -73,11 +73,10 @@ public void OnPluginStart()
 
 	g_hCookie = RegClientCookie("SankSounds", "Turn it ON/OFF", CookieAccess_Protected);
 
-	g_CvAntiSpam_Time = CreateConVar("sm_sanksounds_antispam_time", "45", "How often I should reset the anti spam timer per client?");
-	g_CvSankSounds_PlayedSound = CreateConVar("sm_sanksounds_playedsound", "10", "Time interval to play sounds");
-
+	g_CvAntiSpam_Time = CreateConVar("sm_sanksounds_antispam_time", "45", "How often I should reset the anti spam timer per client? 0 - reset on round start");
+	g_cvAntiSpam_GlobalTime = CreateConVar("sm_sanksounds_playedsound", "10", "Time interval to play sounds");
 	g_CvAntiSpam_Time.AddChangeHook(OnSettingsChanged);
-	g_CvSankSounds_PlayedSound.AddChangeHook(OnSettingsChanged);
+	g_cvAntiSpam_GlobalTime.AddChangeHook(OnSettingsChanged);
 
 	if(g_bLateLoaded)
 	{
@@ -111,16 +110,16 @@ public void OnSettingsChanged(ConVar convar, const char[] oldVal, const char[] n
 	{
 		g_iAntiSpam_Time = convar.IntValue;
 	}
-	else if(convar == g_CvSankSounds_PlayedSound)
+	else if(convar == g_cvAntiSpam_GlobalTime)
 	{
-		g_iSankSounds_PlayedSound = convar.IntValue;
+		g_iAntiSpam_GlobalTime = convar.IntValue;
 	}
 }
 
 public void OnConfigsExecuted()
 {
 	g_iAntiSpam_Time = g_CvAntiSpam_Time.IntValue;
-	g_iSankSounds_PlayedSound = g_CvSankSounds_PlayedSound.IntValue;
+	g_iAntiSpam_GlobalTime = g_cvAntiSpam_GlobalTime.IntValue;
 }
 
 // ************************** VIP ***************************
@@ -144,7 +143,6 @@ public void VIP_OnVIPLoaded()
 public Action OnToggleItem(int iClient, const char[] sFeatureName, VIP_ToggleState OldStatus, VIP_ToggleState &NewStatus)
 {
 	g_bEnable[iClient] = (NewStatus == ENABLED);
-
 	return Plugin_Continue;
 }
 
@@ -162,6 +160,14 @@ public void Disable(Event event, const char[] name, bool db)
 public void Enable(Event event, const char[] name, bool db)
 {
 	g_bEnabled = true;
+
+	if(!g_iAntiSpam_Time)
+	{
+		for(int iClient = 0; iClient <= MaxClients; iClient++)
+		{
+			g_iSoundsDeelay[iClient] = 0;
+		}
+	}
 }
 
 public void OnMapEnd()
@@ -429,7 +435,7 @@ public Action Timer_LoadEntry(Handle timer, DataPack pack)
 	}
 	delete pack;
 }
-// ************************** OnSay ***************************
+// ************************** OnClientSayCommand_Post ***************************
 
 public void OnClientSayCommand_Post(int client, const char[] command, const char[] sArgs)
 {
@@ -442,27 +448,51 @@ public void OnClientSayCommand_Post(int client, const char[] command, const char
 	static char szSound[PLATFORM_MAX_PATH];
 	if(g_hSoundList.GetString(sArgs, szSound, 192))
 	{
-		int iTime = GetTime();
-		int iDeelay = (iTime - g_iSoundsDeelay[client]);
-		if(iDeelay > g_iAntiSpam_Time)
+		if(!g_iAntiSpam_Time)
 		{
-			iDeelay = (iTime - g_iSoundsDeelayGlobal);
-			if(iDeelay > g_iSankSounds_PlayedSound)
+			if(!g_iSoundsDeelay[client])
 			{
-				for(int iClient = 1; iClient <= MaxClients; iClient++)
+				int	iDeelay = (GetTime() - g_iSoundsDeelayGlobal);
+				if(iDeelay > g_iAntiSpam_GlobalTime)
 				{
-					if(!IsClientInGame(iClient) || IsFakeClient(client))
+					for(int iClient = 1; iClient <= MaxClients; iClient++)
 					{
-						continue;
+						if(!IsClientInGame(iClient))
+						{
+							continue;
+						}
+						EmitSoundToClient(iClient, szSound, SOUND_FROM_PLAYER, SNDCHAN_STATIC, SNDLEVEL_NONE, _, g_fVolume[iClient]);
 					}
-					EmitSoundToClient(iClient, szSound, SOUND_FROM_PLAYER, SNDCHAN_STATIC, SNDLEVEL_NONE, _, g_fVolume[iClient]);
+					g_iSoundsDeelay[client] = 1;
+					g_iSoundsDeelayGlobal = GetTime();
 				}
-				g_iSoundsDeelay[client] = GetTime();
-				g_iSoundsDeelayGlobal = GetTime();
+				else CPrintToChat(client, "%t", "Global Already Played", g_iAntiSpam_GlobalTime - iDeelay);
 			}
-			else CPrintToChat(client, "%t", "Global Already Played", g_iSankSounds_PlayedSound - iDeelay);
+			else CPrintToChat(client, "%t", "Round Already Played");
 		}
-		else CPrintToChat(client, "%t", "Already Played", g_iAntiSpam_Time - iDeelay);
+		else{
+			int iTime = GetTime();
+			int iDeelay = (iTime - g_iSoundsDeelay[client]);
+			if(iDeelay > g_iAntiSpam_Time)
+			{
+				iDeelay = (iTime - g_iSoundsDeelayGlobal);
+				if(iDeelay > g_iAntiSpam_GlobalTime)
+				{
+					for(int iClient = 1; iClient <= MaxClients; iClient++)
+					{
+						if(!IsClientInGame(iClient))
+						{
+							continue;
+						}
+						EmitSoundToClient(iClient, szSound, SOUND_FROM_PLAYER, SNDCHAN_STATIC, SNDLEVEL_NONE, _, g_fVolume[iClient]);
+					}
+					g_iSoundsDeelay[client] = GetTime();
+					g_iSoundsDeelayGlobal = GetTime();
+				}
+				else CPrintToChat(client, "%t", "Global Already Played", g_iAntiSpam_GlobalTime - iDeelay);
+			}
+			else CPrintToChat(client, "%t", "Already Played", g_iAntiSpam_Time - iDeelay);
+		}
 	}
 }
 // ************************** Main Menu ***************************
