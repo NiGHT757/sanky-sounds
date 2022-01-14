@@ -5,8 +5,11 @@ Modified version of https://forums.alliedmods.net/showthread.php?p=2689260
 Add entry sounds on SteamID + chance to play
 
 Sounds volume
+
 Reset sanky sounds usage after x seconds or on round start.
+
 Sanky sounds list in menu - /sank
+
 Chat prefix + custom texts in **translations/sankysounds.phrases.txt**
 
 # Requirements:
