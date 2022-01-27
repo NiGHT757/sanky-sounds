@@ -1,7 +1,6 @@
 #include <sourcemod>
 #include <clientprefs>
 #include <basecomm>
-#include <vip_core>
 #include <multicolors>
 #include <sdktools>
 
@@ -12,7 +11,7 @@
 
 public Plugin myinfo =
 {
-	name = "[VIP] Sanky Sounds",
+	name = "Sanky Sounds",
 	author = "xSLOW, edited by .NiGHT",
 	description = "Play chat sounds",
 	version = "2.4",
@@ -21,7 +20,8 @@ public Plugin myinfo =
 
 // ************************** Variables ***************************
 ConVar  g_CvAntiSpam_Time,
-        g_cvAntiSpam_GlobalTime;
+        g_cvAntiSpam_GlobalTime,
+		g_cvFlagAccess;
 
 StringMap g_hSoundList;
 StringMap g_hEntryList;
@@ -30,7 +30,8 @@ StringMap g_hEntryChances;
 int g_iAntiSpam_Time,
 	g_iAntiSpam_GlobalTime,
 	g_iSoundsDeelayGlobal,
-	g_iEntryListSize,
+	g_iFlagAccess,
+    g_iEntryListSize,
     g_iSoundsDeelay[MAXPLAYERS + 1];
 
 Menu g_hMenu;
@@ -45,16 +46,10 @@ bool    g_bHasEntry[MAXPLAYERS + 1] = false,
 
 float g_fVolume[MAXPLAYERS+1] = 1.0, g_fEntryVolume[MAXPLAYERS+1] = 1.0;
 
-static const char g_sFeature[] = "Sanks";
-
 // ************************** OnPluginStart ***************************
 
 public void OnPluginStart()
 {
-	if(VIP_IsVIPLoaded())
-	{
-		VIP_OnVIPLoaded();
-	}
 
 	g_hSoundList = new StringMap();
 	g_hEntryList = new StringMap();
@@ -76,8 +71,11 @@ public void OnPluginStart()
 
 	g_CvAntiSpam_Time = CreateConVar("sm_sanksounds_antispam_time", "45", "How often I should reset the anti spam timer per client? 0 - reset on round start");
 	g_cvAntiSpam_GlobalTime = CreateConVar("sm_sanksounds_playedsound", "10", "Time interval to play sounds");
+	g_cvFlagAccess = CreateConVar("sm_sanksounds_flag", "", "Flags for sank acces , leave blank if no access for flags");
+
 	g_CvAntiSpam_Time.AddChangeHook(OnSettingsChanged);
 	g_cvAntiSpam_GlobalTime.AddChangeHook(OnSettingsChanged);
+	g_cvFlagAccess.AddChangeHook(OnSettingsChanged);
 
 	if(g_bLateLoaded)
 	{
@@ -89,9 +87,7 @@ public void OnPluginStart()
 			}
 
 			OnClientCookiesCached(i);
-			VIP_OnVIPClientLoaded(i);
 		}
-		g_bEnabled = true;
 	}
 	SetCookieMenuItem(sanky_options, 0, "Sank & Entry Sounds");
 
@@ -116,18 +112,37 @@ public void OnSettingsChanged(ConVar convar, const char[] oldVal, const char[] n
 	{
 		g_iAntiSpam_GlobalTime = convar.IntValue;
 	}
+	else if(convar == g_cvFlagAccess)
+	{
+        char sFlags[8];
+        g_cvFlagAccess.GetString(sFlags, 8);
+        ReadFlagString(sFlags, g_iFlagAccess);
+        if(g_iFlagAccess)
+        {
+            for(int iClient = 1; iClient <= MaxClients; iClient++)
+            {
+                if(!IsClientInGame(iClient) || IsFakeClient(iClient))
+                    continue;
+                
+                g_bEnable[iClient] = CheckCommandAccess(iClient, "", g_iFlagAccess, true);
+            }
+        }
+	} 
 }
 
 public void OnConfigsExecuted()
 {
 	g_iAntiSpam_Time = g_CvAntiSpam_Time.IntValue;
 	g_iAntiSpam_GlobalTime = g_cvAntiSpam_GlobalTime.IntValue;
+
+	char sFlags[8];
+	g_cvFlagAccess.GetString(sFlags, 8);
+	ReadFlagString(sFlags, g_iFlagAccess);
 }
 
-// ************************** VIP ***************************
+// ************************** OnPluginEnd ***************************
 public void OnPluginEnd()
 {
-	VIP_UnregisterMe();
 	for(int i = 1; i <= MaxClients; i++)
 	{
 		if(!IsClientInGame(i) || IsFakeClient(i))
@@ -135,22 +150,6 @@ public void OnPluginEnd()
 
 		SaveClientOptions(i);
 	}
-}
-
-public void VIP_OnVIPLoaded()
-{
-	VIP_RegisterFeature(g_sFeature, BOOL, _, OnToggleItem);
-}
-
-public Action OnToggleItem(int iClient, const char[] sFeatureName, VIP_ToggleState OldStatus, VIP_ToggleState &NewStatus)
-{
-	g_bEnable[iClient] = (NewStatus == ENABLED);
-	return Plugin_Continue;
-}
-
-public void VIP_OnVIPClientLoaded(int iClient)
-{
-	g_bEnable[iClient] = VIP_IsClientFeatureUse(iClient, g_sFeature);
 }
 
 // enable/disable
@@ -219,7 +218,9 @@ public void OnClientPostAdminCheck(int client)
 		return;
 	}
 
-	g_bEnable[client] = false;
+	if(g_iFlagAccess)
+		g_bEnable[client] = CheckCommandAccess(client, "", g_iFlagAccess, true);
+    
 	static char sAuthID[128];
 	GetClientAuthId(client, AuthId_Steam2, sAuthID, 128);
 
@@ -238,6 +239,19 @@ public void OnClientPostAdminCheck(int client)
 	}
 }
 
+public void OnRebuildAdminCache(AdminCachePart part)
+{
+    if(g_iFlagAccess)
+    {
+        for(int iClient = 1; iClient <= MaxClients; iClient++)
+        {
+            if(!IsClientInGame(iClient) || IsFakeClient(iClient))
+                continue;
+            
+            g_bEnable[iClient] = CheckCommandAccess(iClient, "", g_iFlagAccess, true);
+        }
+    }
+}
 public void OnClientDisconnect(int client)
 {
 	g_bEnable[client] = false;
@@ -255,99 +269,99 @@ public Action Command_ReloadCfg(int client, int args)
 
 void LoadConfig()
 {
-	char sPath[PLATFORM_MAX_PATH];
-	BuildPath(Path_SM, sPath, sizeof(sPath), "configs/SankSounds.cfg");
-	if(FileExists("addons/sourcemod/configs/SankSounds.cfg"))
-	{
-		KeyValues kv = new KeyValues("Settings");
+    char sPath[PLATFORM_MAX_PATH];
+    BuildPath(Path_SM, sPath, sizeof(sPath), "configs/SankSounds.cfg");
+    if(FileExists("addons/sourcemod/configs/SankSounds.cfg"))
+    {
+        KeyValues kv = new KeyValues("Settings");
 
-		if(!kv.ImportFromFile("addons/sourcemod/configs/SankSounds.cfg"))
-		{
-			SetFailState("Unable to parse key values");
-		}
+        if(!kv.ImportFromFile("addons/sourcemod/configs/SankSounds.cfg"))
+        {
+            SetFailState("Unable to parse key values");
+        }
 
-		if(!kv.JumpToKey("SankSounds"))
-		{
-			SetFailState("Unable to JumpToKey 'SankSounds'");
-		}
+        if(!kv.JumpToKey("SankSounds"))
+        {
+            SetFailState("Unable to JumpToKey 'SankSounds'");
+        }
 
-		if(!kv.GotoFirstSubKey())
-		{
-			SetFailState("Unable to find first sub key");
-		}
+        if(!kv.GotoFirstSubKey())
+        {
+            SetFailState("Unable to find first sub key");
+        }
 
-		delete g_hMenu;
-		
-		g_hSoundList.Clear();
-		g_hEntryList.Clear();
-		g_hEntryChances.Clear();
+        delete g_hMenu;
+        
+        g_hSoundList.Clear();
+        g_hEntryList.Clear();
+        g_hEntryChances.Clear();
 
-		g_hMenu = new Menu(Menu_SoundsList);
+        g_hMenu = new Menu(Menu_SoundsList);
 
-		char SoundPath[PLATFORM_MAX_PATH], SoundName[128], SoundDownload[PLATFORM_MAX_PATH];
-		char ExplodedString[12][64];
-		int ExplodeCounter;
-		do
-		{
-			kv.GetSectionName(SoundName, sizeof(SoundName));
-			kv.GetString("file", SoundPath, sizeof(SoundPath));
-			if(StrContains(SoundName, "|", false))
-			{
-				ExplodeCounter = ExplodeString(SoundName, "|", ExplodedString, sizeof(ExplodedString), sizeof(ExplodedString[]));
+        char SoundPath[PLATFORM_MAX_PATH], SoundName[128], SoundDownload[PLATFORM_MAX_PATH];
+        char ExplodedString[12][64];
+        int ExplodeCounter;
+        do
+        {
+            kv.GetSectionName(SoundName, sizeof(SoundName));
+            kv.GetString("file", SoundPath, sizeof(SoundPath));
+            if(StrContains(SoundName, "|", false))
+            {
+                ExplodeCounter = ExplodeString(SoundName, "|", ExplodedString, sizeof(ExplodedString), sizeof(ExplodedString[]));
 
-				for(int i = 0; i < ExplodeCounter; i++)
-				{
-					FormatEx(SoundDownload, 128, "sound/%s", SoundPath);
-					if(FileExists(SoundDownload))
-					{
-						g_hSoundList.SetString(ExplodedString[i], SoundPath);
-					}
-				}
-			}
-			else{
-				FormatEx(SoundDownload, 128, "sound/%s", SoundPath);
-				if(FileExists(SoundDownload))
-				{
-					g_hSoundList.SetString(SoundName, SoundPath);
-				}
-			}
-			if(FileExists(SoundDownload))
-			{
-				g_hSoundList.SetString(SoundName, SoundPath);
-				g_hMenu.AddItem(SoundPath, SoundName);
-				AddFileToDownloadsTable(SoundDownload);
-				PrecacheSound(SoundPath);
-			}
-			else LogError("Missing sank sound file: %s", SoundPath);
-		} while (kv.GotoNextKey());
-		kv.Rewind();
+                for(int i = 0; i < ExplodeCounter; i++)
+                {
+                    FormatEx(SoundDownload, 128, "sound/%s", SoundPath);
+                    if(FileExists(SoundDownload))
+                    {
+                        g_hSoundList.SetString(ExplodedString[i], SoundPath);
+                    }
+                }
+            }
+            else{
+                FormatEx(SoundDownload, 128, "sound/%s", SoundPath);
+                if(FileExists(SoundDownload))
+                {
+                    g_hSoundList.SetString(SoundName, SoundPath);
+                }
+            }
+            if(FileExists(SoundDownload))
+            {
+                g_hSoundList.SetString(SoundName, SoundPath);
+                g_hMenu.AddItem(SoundPath, SoundName);
+                AddFileToDownloadsTable(SoundDownload);
+                PrecacheSound(SoundPath);
+            }
+            else LogError("Missing sank sound file: %s", SoundPath);
+        } while (kv.GotoNextKey());
+        kv.Rewind();
 
-		g_hMenu.SetTitle("%T", "Sounds List SubMenuText", LANG_SERVER, g_hSoundList.Size);
-		g_hMenu.ExitBackButton = true;
+        g_hMenu.SetTitle("%T", "Sounds List SubMenuText", LANG_SERVER, g_hSoundList.Size);
+        g_hMenu.ExitBackButton = true;
 
-		if(kv.JumpToKey("EntrySounds") && kv.GotoFirstSubKey())
-		{
-			do
-			{
-				kv.GetString("sound", SoundPath, sizeof(SoundPath));
-				kv.GetSectionName(SoundName, sizeof(SoundName));
-				g_hEntryChances.SetValue(SoundName, kv.GetNum("chance", 100)); // steamid + entry chance
-				g_hEntryList.SetString(SoundName, SoundPath); // steamid + soundpath
-				// precache & download
-				FormatEx(SoundDownload, 128, "sound/%s", SoundPath);
-				if(FileExists(SoundDownload))
-				{
-					AddFileToDownloadsTable(SoundDownload);
-					PrecacheSound(SoundPath);
-				}
-				else LogError("Missing sank sound file: %s", SoundPath);
-			}while(kv.GotoNextKey());
-		}
-		delete kv;
-	}
-	else SetFailState("Config files not found. Check if config files are missing.");
+        if(kv.JumpToKey("EntrySounds") && kv.GotoFirstSubKey())
+        {
+            do
+            {
+                kv.GetString("sound", SoundPath, sizeof(SoundPath));
+                kv.GetSectionName(SoundName, sizeof(SoundName));
+                g_hEntryChances.SetValue(SoundName, kv.GetNum("chance", 100)); // steamid + entry chance
+                g_hEntryList.SetString(SoundName, SoundPath); // steamid + soundpath
+                // precache & download
+                FormatEx(SoundDownload, 128, "sound/%s", SoundPath);
+                if(FileExists(SoundDownload))
+                {
+                    AddFileToDownloadsTable(SoundDownload);
+                    PrecacheSound(SoundPath);
+                }
+                else LogError("Missing sank sound file: %s", SoundPath);
+            }while(kv.GotoNextKey());
+        }
+        delete kv;
+    }
+    else SetFailState("Config files not found. Check if config files are missing.");
 
-	g_iEntryListSize = g_hEntryList.Size;
+    g_iEntryListSize = g_hEntryList.Size;
 }
 
 public Action cmd_sankvol(int client, int args)
@@ -382,7 +396,7 @@ public Action cmd_entryvol(int client, int args)
 
 	if(args != 1)
 	{
-		CPrintToChat(client, "%T", client, "Volume Error");
+		CPrintToChat(client, "%T", "Volume Error", client);
 		return Plugin_Handled;
 	}
 	char arg1[6];
@@ -391,7 +405,7 @@ public Action cmd_entryvol(int client, int args)
 	volume = StringToFloat(arg1);
 	if(volume > 1.0 || volume < 0.0)
 	{
-		CPrintToChat(client, "%T", client, "Volume Error");
+		CPrintToChat(client, "%T", "Volume Error", client);
 		return Plugin_Handled;
 	}
 	g_fEntryVolume[client] = StringToFloat(arg1);
@@ -443,7 +457,7 @@ public Action Timer_LoadEntry(Handle timer, DataPack pack)
 
 public void OnClientSayCommand_Post(int client, const char[] command, const char[] sArgs)
 {
-	if(!client || !g_bEnabled || !IsClientInGame(client) || !g_bEnable[client] || g_fVolume[client] == 0.0 || BaseComm_IsClientGagged(client))
+	if(!client || !IsClientInGame(client) || !g_bEnable[client] || g_fVolume[client] == 0.0 || BaseComm_IsClientGagged(client))
 		return;
 
 	if(!sArgs[2] || sArgs[0] == '/' || sArgs[0] == '!')
@@ -523,7 +537,7 @@ public int ShowMainMenuHandler(Menu MainMenu, MenuAction action, int client, int
 				case 0: // Sank Sounds Volume
 				{
 					Menu menu = new Menu(Handler_SankVolume);
-					menu.SetTitle("%T", "Sanky Sounds SubMenuTitle", g_fVolume[client]);
+					menu.SetTitle("%t", "Sanky Sounds SubMenuTitle", g_fVolume[client]);
 
 					menu.AddItem("0.0", "Mute");
 					menu.AddItem("0.2", "20%");
@@ -538,7 +552,7 @@ public int ShowMainMenuHandler(Menu MainMenu, MenuAction action, int client, int
 				case 1: // Entry Sounds
 				{
 					Menu menu = new Menu(Handler_EntryVolume);
-					menu.SetTitle("%T", "Entry Sounds SubMenuTitle", g_fEntryVolume[client]);
+					menu.SetTitle("%t", "Entry Sounds SubMenuTitle", g_fEntryVolume[client]);
 
 					menu.AddItem("0.0", "Mute");
 					menu.AddItem("0.2", "20%");
@@ -554,7 +568,7 @@ public int ShowMainMenuHandler(Menu MainMenu, MenuAction action, int client, int
 				{
 					g_bHasEntryOn[client] = !g_bHasEntryOn[client];
 					SaveClientOptions(client);
-					CPrintToChat(client, "%T", "Entry Sounds OptionSaved", client, g_bHasEntryOn[client] ? "\x04ENABLED":"\x02DISABLED");
+					CPrintToChat(client, "%t", "Entry Sounds OptionSaved", g_bHasEntryOn[client] ? "\x04ENABLED":"\x02DISABLED");
 				}
 				case 3: // Sank Sounds list
 				{
@@ -578,7 +592,7 @@ void ShowCommand(int client)
 {
 	char sFormat[32];
 	Menu MainMenu = new Menu(ShowMainMenuHandler);
-	MainMenu.SetTitle("%T", "Sanky Sounds MainMenuTitle", client);
+	MainMenu.SetTitle("%t", "Sanky Sounds MainMenuTitle");
 	FormatEx(sFormat, sizeof(sFormat), "%T", "Sanky Sounds SubMenuVolume", client, g_fVolume[client]);
 	MainMenu.AddItem("", sFormat);
 	FormatEx(sFormat, sizeof(sFormat), "%T", "Entry Sounds SubMenuVolume", client, g_fEntryVolume[client]);
