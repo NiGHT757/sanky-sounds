@@ -14,7 +14,7 @@ public Plugin myinfo =
 	name = "Sanky Sounds",
 	author = "xSLOW, edited by .NiGHT",
 	description = "Play chat sounds",
-	version = "2.4",
+	version = "2.5",
 	url = "https://steamcommunity.com/profiles/76561193897443537"
 };
 
@@ -464,7 +464,7 @@ public void OnClientSayCommand_Post(int client, const char[] command, const char
 		return;
 	
 	static char szSound[PLATFORM_MAX_PATH];
-	if(g_hSoundList.GetString(sArgs, szSound, 192))
+	if(g_hSoundList.GetString(sArgs, szSound, PLATFORM_MAX_PATH))
 	{
 		if(!g_iAntiSpam_Time)
 		{
@@ -537,7 +537,7 @@ public int ShowMainMenuHandler(Menu MainMenu, MenuAction action, int client, int
 				case 0: // Sank Sounds Volume
 				{
 					Menu menu = new Menu(Handler_SankVolume);
-					menu.SetTitle("%t", "Sanky Sounds SubMenuTitle", g_fVolume[client]);
+					menu.SetTitle("%T", "Sanky Sounds SubMenuTitle", client, g_fVolume[client]);
 
 					menu.AddItem("0.0", "Mute");
 					menu.AddItem("0.2", "20%");
@@ -552,7 +552,7 @@ public int ShowMainMenuHandler(Menu MainMenu, MenuAction action, int client, int
 				case 1: // Entry Sounds
 				{
 					Menu menu = new Menu(Handler_EntryVolume);
-					menu.SetTitle("%t", "Entry Sounds SubMenuTitle", g_fEntryVolume[client]);
+					menu.SetTitle("%T", "Entry Sounds SubMenuTitle", client, g_fEntryVolume[client]);
 
 					menu.AddItem("0.0", "Mute");
 					menu.AddItem("0.2", "20%");
@@ -568,7 +568,7 @@ public int ShowMainMenuHandler(Menu MainMenu, MenuAction action, int client, int
 				{
 					g_bHasEntryOn[client] = !g_bHasEntryOn[client];
 					SaveClientOptions(client);
-					CPrintToChat(client, "%t", "Entry Sounds OptionSaved", g_bHasEntryOn[client] ? "\x04ENABLED":"\x02DISABLED");
+					CPrintToChat(client, "%T", "Entry Sounds OptionSaved", client, g_bHasEntryOn[client] ? "\x04ENABLED":"\x02DISABLED");
 				}
 				case 3: // Sank Sounds list
 				{
@@ -592,7 +592,7 @@ void ShowCommand(int client)
 {
 	char sFormat[32];
 	Menu MainMenu = new Menu(ShowMainMenuHandler);
-	MainMenu.SetTitle("%t", "Sanky Sounds MainMenuTitle");
+	MainMenu.SetTitle("%T", "Sanky Sounds MainMenuTitle", client);
 	FormatEx(sFormat, sizeof(sFormat), "%T", "Sanky Sounds SubMenuVolume", client, g_fVolume[client]);
 	MainMenu.AddItem("", sFormat);
 	FormatEx(sFormat, sizeof(sFormat), "%T", "Entry Sounds SubMenuVolume", client, g_fEntryVolume[client]);

@@ -15,7 +15,7 @@ public Plugin myinfo =
 	name = "[VIP] Sanky Sounds",
 	author = "xSLOW, edited by .NiGHT",
 	description = "Play chat sounds",
-	version = "2.4",
+	version = "2.5",
 	url = "https://steamcommunity.com/profiles/76561193897443537"
 };
 
@@ -382,7 +382,7 @@ public Action cmd_entryvol(int client, int args)
 
 	if(args != 1)
 	{
-		CPrintToChat(client, "%T", client, "Volume Error");
+		CPrintToChat(client, "%T", "Volume Error", client);
 		return Plugin_Handled;
 	}
 	char arg1[6];
@@ -391,7 +391,7 @@ public Action cmd_entryvol(int client, int args)
 	volume = StringToFloat(arg1);
 	if(volume > 1.0 || volume < 0.0)
 	{
-		CPrintToChat(client, "%T", client, "Volume Error");
+		CPrintToChat(client, "%T", "Volume Error", client);
 		return Plugin_Handled;
 	}
 	g_fEntryVolume[client] = StringToFloat(arg1);
@@ -450,7 +450,7 @@ public void OnClientSayCommand_Post(int client, const char[] command, const char
 		return;
 	
 	static char szSound[PLATFORM_MAX_PATH];
-	if(g_hSoundList.GetString(sArgs, szSound, 192))
+	if(g_hSoundList.GetString(sArgs, szSound, PLATFORM_MAX_PATH))
 	{
 		if(!g_iAntiSpam_Time)
 		{
@@ -523,7 +523,7 @@ public int ShowMainMenuHandler(Menu MainMenu, MenuAction action, int client, int
 				case 0: // Sank Sounds Volume
 				{
 					Menu menu = new Menu(Handler_SankVolume);
-					menu.SetTitle("%T", "Sanky Sounds SubMenuTitle", g_fVolume[client]);
+					menu.SetTitle("%T", "Sanky Sounds SubMenuTitle", client, g_fVolume[client]);
 
 					menu.AddItem("0.0", "Mute");
 					menu.AddItem("0.2", "20%");
@@ -538,7 +538,7 @@ public int ShowMainMenuHandler(Menu MainMenu, MenuAction action, int client, int
 				case 1: // Entry Sounds
 				{
 					Menu menu = new Menu(Handler_EntryVolume);
-					menu.SetTitle("%T", "Entry Sounds SubMenuTitle", g_fEntryVolume[client]);
+					menu.SetTitle("%T", "Entry Sounds SubMenuTitle", client, g_fEntryVolume[client]);
 
 					menu.AddItem("0.0", "Mute");
 					menu.AddItem("0.2", "20%");
