@@ -21,7 +21,7 @@ For sanky_n.smx(flags only) - [SourceMod](https://www.sourcemod.net/downloads.ph
 
 # Instalation
 1. Unpack and upload the desired plugin + files on the server
-2. [VIP] - Add **"Sanks" "time"** in **groups.ini** // replace **time** with Cooldown in seconds.
+2. [VIP] - Add **"Sanks" "time"** in **groups.ini** // replace **time** with Cooldown in seconds, 0 = 1 sank per round.
 
 # 
 ![image](https://user-images.githubusercontent.com/86895149/149414250-4f35f03d-0cbc-45d3-b14f-fd5a55f29c1b.png)
