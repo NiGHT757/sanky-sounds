@@ -15,23 +15,22 @@ public Plugin myinfo =
 	name = "[VIP] Sanky Sounds",
 	author = "xSLOW, edited by .NiGHT",
 	description = "Play chat sounds",
-	version = "2.5",
+	version = "2.6",
 	url = "https://steamcommunity.com/profiles/76561193897443537"
 };
 
 // ************************** Variables ***************************
-ConVar  g_CvAntiSpam_Time,
-        g_cvAntiSpam_GlobalTime;
+ConVar g_cvAntiSpam_GlobalTime;
 
 StringMap g_hSoundList;
 StringMap g_hEntryList;
 StringMap g_hEntryChances;
 
-int g_iAntiSpam_Time,
-	g_iAntiSpam_GlobalTime,
+int g_iAntiSpam_GlobalTime,
 	g_iSoundsDeelayGlobal,
 	g_iEntryListSize,
-    g_iSoundsDeelay[MAXPLAYERS + 1];
+    g_iSoundsDeelay[MAXPLAYERS + 1],
+	g_iClientDeelay[MAXPLAYERS + 1];
 
 Menu g_hMenu;
 
@@ -66,6 +65,7 @@ public void OnPluginStart()
 	HookEventEx("round_start", Enable, EventHookMode_PostNoCopy);
 
 	RegConsoleCmd("sm_sounds", Command_Sanky);
+	//RegConsoleCmd("sm_qs", Command_Sanky);
 	RegConsoleCmd("sm_sank", Command_Sanky);
 	RegConsoleCmd("sm_sankvol", cmd_sankvol);
 	RegConsoleCmd("sm_entryvol", cmd_entryvol);
@@ -74,9 +74,7 @@ public void OnPluginStart()
 
 	g_hCookie = RegClientCookie("SankSounds", "Turn it ON/OFF", CookieAccess_Protected);
 
-	g_CvAntiSpam_Time = CreateConVar("sm_sanksounds_antispam_time", "45", "How often I should reset the anti spam timer per client? 0 - reset on round start");
 	g_cvAntiSpam_GlobalTime = CreateConVar("sm_sanksounds_playedsound", "10", "Time interval to play sounds");
-	g_CvAntiSpam_Time.AddChangeHook(OnSettingsChanged);
 	g_cvAntiSpam_GlobalTime.AddChangeHook(OnSettingsChanged);
 
 	if(g_bLateLoaded)
@@ -108,19 +106,11 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 // ************************** OnSettingsChanged ***************************
 public void OnSettingsChanged(ConVar convar, const char[] oldVal, const char[] newVal)
 {
-	if(convar == g_CvAntiSpam_Time)
-	{
-		g_iAntiSpam_Time = convar.IntValue;
-	}
-	else if(convar == g_cvAntiSpam_GlobalTime)
-	{
-		g_iAntiSpam_GlobalTime = convar.IntValue;
-	}
+	g_iAntiSpam_GlobalTime = g_cvAntiSpam_GlobalTime.IntValue;
 }
 
 public void OnConfigsExecuted()
 {
-	g_iAntiSpam_Time = g_CvAntiSpam_Time.IntValue;
 	g_iAntiSpam_GlobalTime = g_cvAntiSpam_GlobalTime.IntValue;
 }
 
@@ -139,18 +129,31 @@ public void OnPluginEnd()
 
 public void VIP_OnVIPLoaded()
 {
-	VIP_RegisterFeature(g_sFeature, BOOL, _, OnToggleItem);
+	VIP_RegisterFeature(g_sFeature, INT, _, OnToggleItem, OnItemDisplay);
 }
 
 public Action OnToggleItem(int iClient, const char[] sFeatureName, VIP_ToggleState OldStatus, VIP_ToggleState &NewStatus)
 {
 	g_bEnable[iClient] = (NewStatus == ENABLED);
+	g_iClientDeelay[iClient] = VIP_GetClientFeatureInt(iClient, g_sFeature);
 	return Plugin_Continue;
+}
+
+public bool OnItemDisplay(int iClient, const char[] szFeature, char[] szDisplay, int iMaxLength)
+{
+	if (g_bEnable[iClient])
+	{
+		FormatEx(szDisplay, iMaxLength, "%s [%d seconds]", g_sFeature, g_iClientDeelay[iClient]);
+		return true;
+	}
+	
+	return false;
 }
 
 public void VIP_OnVIPClientLoaded(int iClient)
 {
 	g_bEnable[iClient] = VIP_IsClientFeatureUse(iClient, g_sFeature);
+	g_iClientDeelay[iClient] = VIP_GetClientFeatureInt(iClient, g_sFeature);
 }
 
 // enable/disable
@@ -163,12 +166,10 @@ public void Enable(Event event, const char[] name, bool db)
 {
 	g_bEnabled = true;
 
-	if(!g_iAntiSpam_Time)
+	for(int iClient = 1; iClient <= MaxClients; iClient++)
 	{
-		for(int iClient = 1; iClient <= MaxClients; iClient++)
-		{
+		if(!g_iClientDeelay[iClient])
 			g_iSoundsDeelay[iClient] = 0;
-		}
 	}
 }
 
@@ -232,7 +233,7 @@ public void OnClientPostAdminCheck(int client)
 			DataPack pack = new DataPack();
 			pack.WriteCell(GetClientUserId(client));
 			pack.WriteString(sAuthID);
-			CreateTimer(4.0, Timer_LoadEntry, pack, TIMER_FLAG_NO_MAPCHANGE);
+			CreateTimer(5.0, Timer_LoadEntry, pack, TIMER_FLAG_NO_MAPCHANGE);
 		}
 		g_bHasEntry[client] = true;
 	}
@@ -257,13 +258,13 @@ void LoadConfig()
 {
 	char sPath[PLATFORM_MAX_PATH];
 	BuildPath(Path_SM, sPath, sizeof(sPath), "configs/SankSounds.cfg");
-	if(FileExists("addons/sourcemod/configs/SankSounds.cfg"))
+	if(FileExists(sPath))
 	{
 		KeyValues kv = new KeyValues("Settings");
 
-		if(!kv.ImportFromFile("addons/sourcemod/configs/SankSounds.cfg"))
+		if(!kv.ImportFromFile(sPath))
 		{
-			SetFailState("Unable to parse key values");
+			SetFailState("Unable to parse key values.");
 		}
 
 		if(!kv.JumpToKey("SankSounds"))
@@ -345,7 +346,7 @@ void LoadConfig()
 		}
 		delete kv;
 	}
-	else SetFailState("Config files not found. Check if config files are missing.");
+	else SetFailState("Config file %s not found. Check if config files are missing.", sPath);
 
 	g_iEntryListSize = g_hEntryList.Size;
 }
@@ -452,7 +453,7 @@ public void OnClientSayCommand_Post(int client, const char[] command, const char
 	static char szSound[PLATFORM_MAX_PATH];
 	if(g_hSoundList.GetString(sArgs, szSound, PLATFORM_MAX_PATH))
 	{
-		if(!g_iAntiSpam_Time)
+		if(!g_iClientDeelay[client])
 		{
 			if(!g_iSoundsDeelay[client])
 			{
@@ -477,7 +478,7 @@ public void OnClientSayCommand_Post(int client, const char[] command, const char
 		else{
 			int iTime = GetTime();
 			int iDeelay = (iTime - g_iSoundsDeelay[client]);
-			if(iDeelay > g_iAntiSpam_Time)
+			if(iDeelay > g_iClientDeelay[client])
 			{
 				iDeelay = (iTime - g_iSoundsDeelayGlobal);
 				if(iDeelay > g_iAntiSpam_GlobalTime)
@@ -495,7 +496,7 @@ public void OnClientSayCommand_Post(int client, const char[] command, const char
 				}
 				else CPrintToChat(client, "%T", "Global Already Played", client, g_iAntiSpam_GlobalTime - iDeelay);
 			}
-			else CPrintToChat(client, "%T", "Already Played", client, g_iAntiSpam_Time - iDeelay);
+			else CPrintToChat(client, "%T", "Already Played", client, g_iClientDeelay[client] - iDeelay);
 		}
 	}
 }
