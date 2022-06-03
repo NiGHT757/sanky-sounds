@@ -1,0 +1,74 @@
+"Phrases"
+{
+	"Volume Error"
+	{
+		"en"			"[{darkred}USP{default}] Invalid volume, min {green}0.0{default}, max{darkred} 1.0{default}."
+	}
+	
+	"Option Saved"
+	{
+		"#format"		"{1:.2f}"
+		"en"			"[{darkred}USP{default}] Option {green}saved! {default}New volume: {lightblue}{1}{default}."
+	}
+	
+	"Already Played"
+	{
+		"#format"		"{1:d}"
+		"en"			"* You {darkred}already {default}played a sound {green}a while ago. {default}Please wait {purple}{1}{default} seconds before playing another sound."
+	}
+	
+	"Round Already Played"
+	{
+		"en"			"* You {darkred}already {default}played a sound in this round. {default}Please wait until next round before playing another sound."
+	}
+	
+	"Global Already Played"
+	{
+		"#format"		"{1:d}"
+		"en"			"* A {yellow}sound {darkred}was already{default} played a while {green}ago, {default} please wait {purple}{1}{default} seconds."
+	}
+	
+	"Sanky Sounds MainMenuTitle"
+	{
+		"en"			"[Sank Sounds]\nMain menu"
+	}
+	
+	"Sanky Sounds SubMenuTitle"
+	{
+		"#format"		"{1:.2f}"
+		"en"			"[{1}] Sank Sounds Volume\nNote: You can customize your volume by typing !sankvol"
+	}
+	
+	"Entry Sounds SubMenuTitle"
+	{
+		"#format"		"{1:.2f}"
+		"en"			"[{1}] Entry Sounds Volume\nNote: You can customize your volume by typing !entryvol"
+	}
+	
+	"Sanky Sounds SubMenuVolume"
+	{
+		"#format"		"{1:.2f}"
+		"en"			"[{1}] Sank Sounds Volume"
+	}
+	
+	"Entry Sounds SubMenuVolume"
+	{
+		"#format"		"{1:.2f}"
+		"en"			"[{1}] Entry Sounds Volume"
+	}
+	
+	"Entry Sounds OptionSaved"
+	{
+		"#format"		"{1:s}"
+		"en"			"[{1}] Your Entry Sounds"
+	}
+	"Sound List MainMenuText"
+	{
+		"en"			"Sound List"
+	}
+	"Sounds List SubMenuText"
+	{
+		"#format"		"{1:d}"
+		"en"			"[Sounds list]\nNote: You cannot play global sounds from here, only preview.\nWords count: {1}"
+	}
+}
