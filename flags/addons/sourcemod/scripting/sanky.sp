@@ -14,7 +14,7 @@ public Plugin myinfo =
 	name = "Sanky Sounds",
 	author = "xSLOW, edited by .NiGHT",
 	description = "Custom Entry & Chat sounds",
-	version = "2.7",
+	version = "2.8",
 	url = "https://github.com/NiGHT757/sanky-sounds"
 };
 
@@ -39,13 +39,13 @@ Menu g_hMenu;
 
 Handle g_hCookie = null;
 
-bool    g_bHasEntry[MAXPLAYERS + 1] = false,
-		g_bHasEntryOn[MAXPLAYERS+1] = {true, ...},
-		g_bEnable[MAXPLAYERS + 1] = false,
-		g_bEnabled = false,
-		g_bLateLoaded = false;
+bool    g_bHasEntry[MAXPLAYERS + 1],
+		g_bHasEntryOn[MAXPLAYERS+1],
+		g_bEnable[MAXPLAYERS + 1],
+		g_bEnabled,
+		g_bLateLoaded;
 
-float g_fVolume[MAXPLAYERS+1] = 1.0, g_fEntryVolume[MAXPLAYERS+1] = 1.0;
+float g_fVolume[MAXPLAYERS+1], g_fEntryVolume[MAXPLAYERS+1];
 
 // ************************** OnPluginStart ***************************
 
@@ -88,6 +88,7 @@ public void OnPluginStart()
 			}
 
 			OnClientCookiesCached(i);
+			g_bEnable[i] = CheckCommandAccess(i, "", g_iFlagAccess, true);
 		}
 	}
 	SetCookieMenuItem(sanky_options, 0, "Sank & Entry Sounds");
@@ -103,7 +104,7 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 }
 
 // ************************** OnSettingsChanged ***************************
-public void OnSettingsChanged(ConVar convar, const char[] oldVal, const char[] newVal)
+void OnSettingsChanged(ConVar convar, const char[] oldVal, const char[] newVal)
 {
 	if(convar == g_CvAntiSpam_Time)
 	{
@@ -141,25 +142,13 @@ public void OnConfigsExecuted()
 	ReadFlagString(sFlags, g_iFlagAccess);
 }
 
-// ************************** OnPluginEnd ***************************
-public void OnPluginEnd()
-{
-	for(int i = 1; i <= MaxClients; i++)
-	{
-		if(!IsClientInGame(i) || IsFakeClient(i))
-			continue;
-
-		SaveClientOptions(i);
-	}
-}
-
 // enable/disable
-public void Disable(Event event, const char[] name, bool db)
+void Disable(Event event, const char[] name, bool db)
 {
 	g_bEnabled = false;
 }
 
-public void Enable(Event event, const char[] name, bool db)
+void Enable(Event event, const char[] name, bool db)
 {
 	g_bEnabled = true;
 
@@ -214,12 +203,14 @@ public void OnClientCookiesCached(int client)
 
 public void OnClientPostAdminCheck(int client)
 {
-	if(!g_iEntryListSize || !client || IsFakeClient(client))
-	{
+	if(!client || IsFakeClient(client))
 		return;
-	}
 
-	g_bEnable[client] = false;
+	g_bEnable[client] = CheckCommandAccess(client, "", g_iFlagAccess, true);
+
+	if(!g_iEntryListSize)
+		return;
+	
 	static char sAuthID[32], sData[128];
 	GetClientAuthId(client, AuthId_Steam2, sAuthID, sizeof(sAuthID));
 
@@ -254,6 +245,7 @@ public void OnRebuildAdminCache(AdminCachePart part)
         }
     }
 }
+
 public void OnClientDisconnect(int client)
 {
 	g_bEnable[client] = false;
@@ -374,7 +366,7 @@ void LoadConfig()
 	g_iEntryListSize = g_hEntryList.Size;
 }
 
-public Action cmd_sankvol(int client, int args)
+Action cmd_sankvol(int client, int args)
 {
 	if(!client || !IsClientInGame(client))
 		return Plugin_Handled;
@@ -384,22 +376,27 @@ public Action cmd_sankvol(int client, int args)
 		CPrintToChat(client, "%T", "Volume Error", client);
 		return Plugin_Handled;
 	}
+
 	char arg1[6];
 	GetCmdArg(1, arg1, sizeof(arg1));
+
 	float volume;
 	volume = StringToFloat(arg1);
+
 	if(volume > 1.0 || volume < 0.0)
 	{
 		CPrintToChat(client, "%T", "Volume Error", client);
 		return Plugin_Handled;
 	}
+
 	g_fVolume[client] = StringToFloat(arg1);
 	SaveClientOptions(client);
 	CPrintToChat(client, "%T", "Option Saved", client, g_fVolume[client]);
+
 	return Plugin_Handled;
 }
 
-public Action cmd_entryvol(int client, int args)
+Action cmd_entryvol(int client, int args)
 {
 	if(!client || !IsClientInGame(client))
 		return Plugin_Handled;
@@ -409,30 +406,38 @@ public Action cmd_entryvol(int client, int args)
 		CPrintToChat(client, "%T", "Volume Error", client);
 		return Plugin_Handled;
 	}
+
 	char arg1[6];
 	GetCmdArg(1, arg1, sizeof(arg1));
+
 	float volume;
 	volume = StringToFloat(arg1);
+
 	if(volume > 1.0 || volume < 0.0)
 	{
 		CPrintToChat(client, "%T", "Volume Error", client);
 		return Plugin_Handled;
 	}
+
 	g_fEntryVolume[client] = StringToFloat(arg1);
 	CPrintToChat(client, "%T", "Option Saved", client, g_fEntryVolume[client]);
 	SaveClientOptions(client);
+
 	return Plugin_Handled;
 }
 
-public Action Timer_LoadEntry(Handle timer, DataPack pack)
+Action Timer_LoadEntry(Handle timer, DataPack pack)
 {
 	pack.Reset();
-
-	char sSound[PLATFORM_MAX_PATH];
-	char sText[128];
 	int client;
 
 	client = GetClientOfUserId(pack.ReadCell());
+	if(!client)
+		return Plugin_Stop;
+
+	char sSound[PLATFORM_MAX_PATH];
+	char sText[128];
+
 	pack.ReadString(sSound, sizeof(sSound));
 	pack.ReadString(sText, sizeof(sText));
 
@@ -445,19 +450,18 @@ public Action Timer_LoadEntry(Handle timer, DataPack pack)
 		if(g_bEnabled)
 			EmitSoundToClient(i, sSound, SOUND_FROM_PLAYER, SNDCHAN_STATIC, SNDLEVEL_NONE, _, g_fEntryVolume[i]);
 		
-		CPrintToChat(i, "{lightgreen}—————————————————————————————————");
+		PrintToChat(i, " \x06—————————————————————————————————");
 		CPrintToChat(i, sText, client);
-		CPrintToChat(i, "{lightgreen}—————————————————————————————————");
+		PrintToChat(i, " \x06—————————————————————————————————");
 	}
+
+	return Plugin_Stop;
 }
 // ************************** OnClientSayCommand_Post ***************************
 
 public void OnClientSayCommand_Post(int client, const char[] command, const char[] sArgs)
 {
-	if(!client || !IsClientInGame(client) || !g_bEnable[client] || g_fVolume[client] == 0.0 || BaseComm_IsClientGagged(client))
-		return;
-
-	if(!sArgs[2] || sArgs[0] == '/' || sArgs[0] == '!')
+	if(!client || !g_bEnabled || !sArgs[1] || !g_bEnable[client] || !g_fVolume[client] || sArgs[0] == '/' || sArgs[0] == '!' || BaseComm_IsClientGagged(client))
 		return;
 	
 	static char szSound[PLATFORM_MAX_PATH];
@@ -512,7 +516,7 @@ public void OnClientSayCommand_Post(int client, const char[] command, const char
 }
 // ************************** Main Menu ***************************
 
-public Action Command_Sanky(int client, int args)
+Action Command_Sanky(int client, int args)
 {
     if(!client || !IsClientInGame(client))
     {
@@ -523,12 +527,12 @@ public Action Command_Sanky(int client, int args)
     return Plugin_Handled;
 }
 
-public int ShowMainMenuHandler(Menu MainMenu, MenuAction action, int client, int param2)
+int ShowMainMenuHandler(Menu MainMenu, MenuAction action, int client, int param2)
 {
-    switch(action)
-    {
-        case MenuAction_Select:
-        {
+	switch(action)
+	{
+		case MenuAction_Select:
+		{
 			switch(param2)
 			{
 				case 0: // Sank Sounds Volume
@@ -572,17 +576,18 @@ public int ShowMainMenuHandler(Menu MainMenu, MenuAction action, int client, int
 					g_hMenu.Display(client, 0);
 				}
 			}
-        }
+		}
 		case MenuAction_Cancel:
 		{
 			if(param2 == MenuCancel_ExitBack)
 				ShowCookieMenu(client);
 		}
-        case MenuAction_End:
-        {
-            delete MainMenu;
-        }
-    }
+		case MenuAction_End:
+		{
+			delete MainMenu;
+		}
+	}
+	return 0;
 }
 
 void ShowCommand(int client)
@@ -603,7 +608,7 @@ void ShowCommand(int client)
 	MainMenu.Display(client, 15);
 }
 
-public int Handler_SankVolume(Menu menu, MenuAction action, int client, int param2)
+int Handler_SankVolume(Menu menu, MenuAction action, int client, int param2)
 {
 	switch(action)
 	{
@@ -624,9 +629,10 @@ public int Handler_SankVolume(Menu menu, MenuAction action, int client, int para
         }
 		case MenuAction_End: delete menu;
 	}
+	return 0;
 }
 
-public int Handler_EntryVolume(Menu menu, MenuAction action, int client, int param2)
+int Handler_EntryVolume(Menu menu, MenuAction action, int client, int param2)
 {
 	switch(action)
 	{
@@ -647,30 +653,32 @@ public int Handler_EntryVolume(Menu menu, MenuAction action, int client, int par
         }
 		case MenuAction_End: delete menu;
 	}
+	return 0;
 }
 
-public int Menu_SoundsList(Menu menu, MenuAction action, int client, int param2)
+int Menu_SoundsList(Menu menu, MenuAction action, int client, int param2)
 {
-    switch(action)
-    {
-        case MenuAction_Select:
-        {
+	switch(action)
+	{
+		case MenuAction_Select:
+		{
 			char szSound[PLATFORM_MAX_PATH];
 			menu.GetItem(param2, szSound, PLATFORM_MAX_PATH);
 			EmitSoundToClient(client, szSound, SOUND_FROM_PLAYER, SNDCHAN_STATIC, SNDLEVEL_NONE, _, g_fVolume[client]);
 			g_hMenu.DisplayAt(client, g_hMenu.Selection, MENU_TIME_FOREVER);
-        }
-        case MenuAction_Cancel:
-        {
-            if(param2 == MenuCancel_ExitBack)
+		}
+		case MenuAction_Cancel:
+		{
+			if(param2 == MenuCancel_ExitBack)
 			{
 				ShowCommand(client);
 			}
-        }
-    }
+		}
+	}
+	return 0;
 }
 
-public void sanky_options(int client, CookieMenuAction action, any info, char[] buffer, int maxlen)
+void sanky_options(int client, CookieMenuAction action, any info, char[] buffer, int maxlen)
 {
 	if(action == CookieMenuAction_SelectOption)
 	{
